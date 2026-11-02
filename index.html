@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Árvore de Produto - Explosão/Implosão</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { background: #f5f5f5; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { color: #e85d04; margin-bottom: 20px; text-align: center; }
+        .btn-group { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: opacity 0.2s; }
+        .btn:hover { opacity: 0.9; }
+        .btn-orange { background: #e85d04; color: white; }
+        .btn-gray { background: #666; color: white; }
+        .btn-green { background: #28a745; color: white; }
+        .btn-red { background: #dc3545; color: white; }
+        .section { margin-bottom: 25px; padding: 15px; background: #fafafa; border-radius: 6px; border: 1px solid #eee; }
+        .section h2 { color: #333; margin-bottom: 15px; font-size: 1.2em; border-bottom: 2px solid #e85d04; padding-bottom: 5px; }
+        .form-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+        .form-row input, .form-row select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; }
+        .form-row input[type="text"] { flex: 1; min-width: 150px; }
+        .form-row input[type="number"] { width: 80px; }
+        .form-row input[type="submit"], .form-row button { background: #e85d04; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+        .tree-output { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; font-family: monospace; font-size: 13px; line-height: 1.6; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
+        .tree-item { margin-left: 20px; }
+        .tree-root { font-weight: bold; color: #ffd700; }
+        .tree-leaf { color: #4ec9b0; }
+        .result-box { background: #e8f5e9; border: 1px solid #c8e6c9; padding: 15px; border-radius: 4px; margin-top: 10px; }
+        .result-box h3 { color: #2e7d32; margin-bottom: 10px; }
+        .error-box { background: #fdeaea; border: 1px solid #f5c6cb; padding: 10px; border-radius: 4px; color: #721c24; margin-top: 10px; }
+        .info-box { background: #e3f2fd; border: 1px solid #bbdefb; padding: 10px; border-radius: 4px; color: #1565c0; margin-top: 10px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        @media (max-width: 600px) { .form-row { flex-direction: column; } .form-row input, .form-row select { width: 100%; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📦 Árvore de Produto - Explosão / Implosão</h1>
+
+        <div class="btn-group">
+            <button class="btn btn-orange" onclick="carregarTeste('1')">Teste 1: Caneta</button>
+            <button class="btn btn-orange" onclick="carregarTeste('2')">Teste 2: Computador</button>
+            <button class="btn btn-gray" onclick="limparTudo()">Limpar Tudo</button>
+        </div>
+
+        <div class="section">
+            <h2>➕ Cadastrar Item</h2>
+            <div class="form-row">
+                <input type="text" id="nome" placeholder="Nome do item (ex: Caneta)">
+                <input type="text" id="pai" placeholder="Nome do pai (deixe vazio se raiz)">
+                <input type="number" id="quantidade" placeholder="Qtd" value="1" min="1">
+                <input type="number" id="preco" placeholder="Valor" value="0" step="0.01" min="0">
+                <button onclick="cadastrarItem()">Cadastrar</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🗑️ Excluir Item</h2>
+            <div class="form-row">
+                <input type="text" id="delNome" placeholder="Nome do item para excluir" style="flex: 1;">
+                <button class="btn-red" onclick="deletarItem()">Excluir</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🌳 Árvore (Explosão)</h2>
+            <div id="treeOutput" class="tree-output">Clique em um teste acima ou cadastre itens para ver a árvore.</div>
+        </div>
+
+        <div class="section">
+            <h2>🔄 Implosão - Atualizar Valor do Componente</h2>
+            <div class="form-row">
+                <input type="text" id="implNome" placeholder="Nome do componente">
+                <input type="number" id="implPreco" placeholder="Novo valor" step="0.01" min="0">
+                <button onclick="atualizarPreco()">Atualizar e Recalcular</button>
+            </div>
+            <div id="implResult"></div>
+        </div>
+
+        <div class="section">
+            <h2>📊 Produção - Quantidade a Produzir</h2>
+            <div class="form-row">
+                <input type="number" id="qtdProduzir" placeholder="Quantidade a produzir" value="1" min="1">
+                <button onclick="calcularProducao()">Calcular</button>
+            </div>
+            <div id="producaoResult"></div>
+        </div>
+    </div>
+
+    <script>
+        const API = '/api/produtos';
+        let localData = [];
+
+        function showTree(data) {
+            const out = document.getElementById('treeOutput');
+            if (!data || !data.raiz) {
+                out.textContent = 'Árvore vazia.';
+                return;
+            }
+            out.innerHTML = formatTree(data.raiz, 0, true);
+        }
+
+        function formatTree(node, level, isRoot) {
+            const indent = '  '.repeat(level);
+            const prefix = level === 0 ? '' : '├─ ';
+            const cls = node.filhos?.length ? 'tree-root' : 'tree-leaf';
+            let html = `<span class="${cls}">${indent}${prefix}${node.nome}</span> (Qtd: ${node.quantidade}, Valor: R$ ${node.preco.toFixed(2)}, Custo: R$ ${node.custo.toFixed(2)})`;
+            if (node.filhos?.length) {
+                node.filhos.forEach((filho, i) => {
+                    html += '\n' + formatTree(filho, level + 1, false);
+                });
+            }
+            return html;
+        }
+
+        function showResult(id, html, isError = false) {
+            const el = document.getElementById(id);
+            el.innerHTML = `<div class="${isError ? 'error-box' : 'result-box'}">${html}</div>`;
+        }
+
+        async function apiCall(url, options = {}) {
+            try {
+                const res = await fetch(API + url, {
+                    headers: { 'Content-Type': 'application/json' },
+                    ...options
+                });
+                return await res.json();
+            } catch (e) {
+                return { erro: e.message, offline: true };
+            }
+        }
+
+        async function carregarTeste(num) {
+            const res = await apiCall('/carregar-teste', {
+                method: 'POST',
+                body: JSON.stringify({ teste: num })
+            });
+            if (res.erro) {
+                carregarTesteLocal(num);
+            } else {
+                await refreshTree();
+            }
+        }
+
+        function carregarTesteLocal(num) {
+            localData = [];
+            if (num === '1') {
+                localData = [
+                    {nome: 'Caneta', pai: null, quantidade: 1, preco: 2.50},
+                    {nome: 'Tinta', pai: 'Caneta', quantidade: 1, preco: 0.80},
+                    {nome: 'Pigmento', pai: 'Tinta', quantidade: 1, preco: 0.30},
+                    {nome: 'Solvente', pai: 'Tinta', quantidade: 1, preco: 0.50},
+                    {nome: 'Corpo', pai: 'Caneta', quantidade: 1, preco: 1.00},
+                    {nome: 'Plástico', pai: 'Corpo', quantidade: 1, preco: 0.70},
+                    {nome: 'Clip', pai: 'Corpo', quantidade: 1, preco: 0.30},
+                    {nome: 'Tampa', pai: 'Caneta', quantidade: 1, preco: 0.70},
+                    {nome: 'Plástico', pai: 'Tampa', quantidade: 1, preco: 0.50},
+                    {nome: 'Vedação', pai: 'Tampa', quantidade: 1, preco: 0.20},
+                ];
+            } else if (num === '2') {
+                localData = [
+                    {nome: 'Computador', pai: null, quantidade: 1, preco: 2500},
+                    {nome: 'Gabinete', pai: 'Computador', quantidade: 1, preco: 800},
+                    {nome: 'Placa-Mãe', pai: 'Gabinete', quantidade: 1, preco: 500},
+                    {nome: 'CPU', pai: 'Placa-Mãe', quantidade: 1, preco: 1000},
+                    {nome: 'Memória RAM', pai: 'Placa-Mãe', quantidade: 2, preco: 200},
+                    {nome: 'Chipset', pai: 'Placa-Mãe', quantidade: 1, preco: 150},
+                    {nome: 'Fonte de Alimentação', pai: 'Gabinete', quantidade: 1, preco: 300},
+                    {nome: 'Armazenamento', pai: 'Gabinete', quantidade: 1, preco: 0},
+                    {nome: 'HDD', pai: 'Armazenamento', quantidade: 1, preco: 250},
+                    {nome: 'SSD', pai: 'Armazenamento', quantidade: 1, preco: 400},
+                    {nome: 'Monitor', pai: 'Computador', quantidade: 1, preco: 900},
+                    {nome: 'Tela LCD', pai: 'Monitor', quantidade: 1, preco: 600},
+                    {nome: 'Carcaça', pai: 'Monitor', quantidade: 1, preco: 100},
+                    {nome: 'Periféricos', pai: 'Computador', quantidade: 1, preco: 0},
+                    {nome: 'Teclado', pai: 'Periféricos', quantidade: 1, preco: 100},
+                    {nome: 'Mouse', pai: 'Periféricos', quantidade: 1, preco: 80},
+                ];
+            }
+            renderLocalTree();
+        }
+
+        async function limparTudo() {
+            await apiCall('/limpar', { method: 'POST' });
+            localData = [];
+            renderLocalTree();
+        }
+
+        async function cadastrarItem() {
+            const nome = document.getElementById('nome').value.trim();
+            const pai = document.getElementById('pai').value.trim() || null;
+            const quantidade = parseInt(document.getElementById('quantidade').value) || 1;
+            const preco = parseFloat(document.getElementById('preco').value) || 0;
+
+            if (!nome) return alert('Nome é obrigatório');
+
+            const res = await apiCall('/cadastrar', {
+                method: 'POST',
+                body: JSON.stringify({ nome, pai, quantidade, preco })
+            });
+
+            if (res.erro) {
+                addLocalItem(nome, pai, quantidade, preco);
+            } else {
+                document.getElementById('nome').value = '';
+                document.getElementById('pai').value = '';
+                document.getElementById('quantidade').value = 1;
+                document.getElementById('preco').value = 0;
+                await refreshTree();
+            }
+        }
+
+        function addLocalItem(nome, pai, quantidade, preco) {
+            localData.push({ nome, pai, quantidade, preco });
+            renderLocalTree();
+            document.getElementById('nome').value = '';
+            document.getElementById('pai').value = '';
+            document.getElementById('quantidade').value = 1;
+            document.getElementById('preco').value = 0;
+        }
+
+        async function deletarItem() {
+            const nome = document.getElementById('delNome').value.trim();
+            if (!nome) return alert('Nome é obrigatório');
+
+            const res = await apiCall('/deletar/' + encodeURIComponent(nome), { method: 'DELETE' });
+            if (res.erro) {
+                localData = localData.filter(i => i.nome !== nome);
+                renderLocalTree();
+            } else {
+                document.getElementById('delNome').value = '';
+                await refreshTree();
+            }
+        }
+
+        async function atualizarPreco() {
+            const nome = document.getElementById('implNome').value.trim();
+            const preco = parseFloat(document.getElementById('implPreco').value);
+            if (!nome || isNaN(preco)) return alert('Preencha todos os campos');
+
+            const res = await apiCall('/atualizar-preco', {
+                method: 'PUT',
+                body: JSON.stringify({ nome, preco })
+            });
+
+            if (res.erro) {
+                atualizarPrecoLocal(nome, preco);
+            } else {
+                showResult('implResult', `✅ Preço atualizado! Novo custo total do produto: <strong>R$ ${res.novoCustoTotal.toFixed(2)}</strong>`);
+                await refreshTree();
+            }
+        }
+
+        function atualizarPrecoLocal(nome, novoPreco) {
+            const item = localData.find(i => i.nome === nome);
+            if (!item) return showResult('implResult', '❌ Componente não encontrado', true);
+            item.preco = novoPreco;
+            renderLocalTree();
+            const tree = buildLocalTree();
+            const custo = calcularCusto(tree.raiz);
+            showResult('implResult', `✅ Preço atualizado! Novo custo total do produto: <strong>R$ ${custo.toFixed(2)}</strong>`);
+        }
+
+        async function calcularProducao() {
+            const qtd = parseInt(document.getElementById('qtdProduzir').value) || 1;
+            const res = await apiCall('/explodir?quantidade=' + qtd, { method: 'GET' });
+
+            if (res.erro) {
+                calcularProducaoLocal(qtd);
+            } else {
+                let html = `<h3>📋 Componentes necessários para ${qtd} unidade(s):</h3><ul>`;
+                for (const [comp, q] of Object.entries(res.componentes)) {
+                    html += `<li>${comp}: ${q} un</li>`;
+                }
+                html += `</ul><p><strong>Valor total de aquisição: R$ ${res.valorTotal.toFixed(2)}</strong></p>`;
+                showResult('producaoResult', html);
+            }
+        }
+
+        function calcularProducaoLocal(qtd) {
+            const tree = buildLocalTree();
+            const comps = explodirLocal(tree.raiz, qtd);
+            const valor = calcularValorAquisicao(tree.raiz, qtd);
+            let html = `<h3>📋 Componentes necessários para ${qtd} unidade(s):</h3><ul>`;
+            for (const [comp, q] of Object.entries(comps)) {
+                html += `<li>${comp}: ${q} un</li>`;
+            }
+            html += `</ul><p><strong>Valor total de aquisição: R$ ${valor.toFixed(2)}</strong></p>`;
+            showResult('producaoResult', html);
+        }
+
+        function buildLocalTree() {
+            const map = {};
+            const nodes = [];
+
+            localData.forEach(item => {
+                const node = { ...item, custo: item.quantidade * item.preco, filhos: [] };
+                map[item.nome] = node;
+                nodes.push(node);
+            });
+
+            let raiz = null;
+            nodes.forEach(node => {
+                if (node.pai && map[node.pai]) {
+                    map[node.pai].filhos.push(node);
+                } else if (!node.pai) {
+                    raiz = node;
+                }
+            });
+
+            return { raiz, map };
+        }
+
+        function renderLocalTree() {
+            const tree = buildLocalTree();
+            showTree(tree);
+            const custo = calcularCusto(tree.raiz);
+            const el = document.getElementById('treeOutput');
+            el.innerHTML += `\n\n<strong>Custo Total: R$ ${custo.toFixed(2)}</strong>`;
+        }
+
+        function formatTree(node, level) {
+            if (!node) return '';
+            const indent = '  '.repeat(level);
+            const prefix = level === 0 ? '' : '├─ ';
+            const cls = node.filhos?.length ? 'tree-root' : 'tree-leaf';
+            let html = `<span class="${cls}">${indent}${prefix}${node.nome}</span> (Qtd: ${node.quantidade}, Valor: R$ ${node.preco.toFixed(2)}, Custo: R$ ${node.custo.toFixed(2)})`;
+            if (node.filhos?.length) {
+                node.filhos.forEach(filho => {
+                    html += '\n' + formatTree(filho, level + 1);
+                });
+            }
+            return html;
+        }
+
+        function showTree(tree) {
+            const out = document.getElementById('treeOutput');
+            if (!tree.raiz) {
+                out.textContent = 'Árvore vazia.';
+                return;
+            }
+            out.innerHTML = formatTree(tree.raiz, 0);
+        }
+
+        function calcularCusto(node) {
+            if (!node) return 0;
+            let total = 0;
+            if (node.filhos?.length) {
+                node.filhos.forEach(filho => {
+                    total += calcularCustoRecursivo(filho, 1);
+                });
+            }
+            return total;
+        }
+
+        function calcularCustoRecursivo(node, qtdPai) {
+            const qtd = qtdPai * node.quantidade;
+            let custo = qtd * node.preco;
+            if (node.filhos?.length) {
+                node.filhos.forEach(filho => {
+                    custo += calcularCustoRecursivo(filho, qtd);
+                });
+            }
+            return custo;
+        }
+
+        function explodirLocal(raiz, qtdProduzir) {
+            const comps = {};
+            if (!raiz) return comps;
+            raiz.filhos?.forEach(filho => {
+                explodirRecursivo(filho, qtdProduzir, comps);
+            });
+            return comps;
+        }
+
+        function explodirRecursivo(node, qtdPai, comps) {
+            const qtd = qtdPai * node.quantidade;
+            comps[node.nome] = (comps[node.nome] || 0) + qtd;
+            node.filhos?.forEach(filho => {
+                explodirRecursivo(filho, qtd, comps);
+            });
+        }
+
+        function calcularValorAquisicao(raiz, qtdProduzir) {
+            if (!raiz) return 0;
+            let total = 0;
+            raiz.filhos?.forEach(filho => {
+                total += calcularCustoRecursivo(filho, qtdProduzir);
+            });
+            return total;
+        }
+
+        async function refreshTree() {
+            const res = await apiCall('/arvore');
+            if (res.erro) {
+                renderLocalTree();
+            } else {
+                showTree(res);
+                const custo = res.custoTotal || 0;
+                const out = document.getElementById('treeOutput');
+                out.innerHTML += `\n\n<strong>Custo Total: R$ ${custo.toFixed(2)}</strong>`;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshTree();
+        });
+    </script>
+</body>
+</html>
