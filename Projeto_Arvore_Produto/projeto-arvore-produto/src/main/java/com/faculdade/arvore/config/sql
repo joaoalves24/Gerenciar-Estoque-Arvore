@@ -1,0 +1,44 @@
+CREATE DATABASE IF NOT EXISTS estoque_arvore;
+USE estoque_arvore;
+
+CREATE TABLE componente (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nome VARCHAR(100) NOT NULL UNIQUE,
+  unidade VARCHAR(10),
+  valor_unitario DECIMAL(12,2),
+  eh_composto BOOLEAN DEFAULT FALSE,
+  data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE produto (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nome VARCHAR(100) NOT NULL UNIQUE,
+  descricao VARCHAR(255),
+  custo_total DECIMAL(14,2) DEFAULT 0,
+  data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+  data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE item_formula (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  produto_id INT NOT NULL,
+  componente_id INT NOT NULL,
+  item_pai_id INT NULL,
+  quantidade DECIMAL(10,3) NOT NULL,
+  valor_unitario DECIMAL(12,2),
+  valor_total DECIMAL(14,2),
+  nivel INT DEFAULT 0,
+  ordem INT DEFAULT 0,
+  FOREIGN KEY (produto_id) REFERENCES produto(id) ON DELETE CASCADE,
+  FOREIGN KEY (componente_id) REFERENCES componente(id) ON DELETE RESTRICT,
+  FOREIGN KEY (item_pai_id) REFERENCES item_formula(id) ON DELETE CASCADE
+);
+
+CREATE TABLE historico_preco (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  componente_id INT NOT NULL,
+  valor_antigo DECIMAL(12,2),
+  valor_novo DECIMAL(12,2),
+  data_alteracao DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (componente_id) REFERENCES componente(id)
+);
